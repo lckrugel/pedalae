@@ -6,7 +6,7 @@ class Usuario(db.Model):
     idUsuario = db.Column(db.Integer, primary_key=True)
     nomeUsuario = db.Column(db.String(50), nullable=False)
     docUsuario = db.Column(db.String(15), nullable=False)
-    saldoUsuario = db.Column(db.Numeric(19, 4), nullable=False)
+    saldoUsuario = db.Column(db.Numeric(19, 4), default=0)
     itens = db.relationship('Item', backref=db.backref('proprietario', lazy=True))
     alugueis = db.relationship('Aluguel', backref=db.backref('locatario', lazy=True))
 
@@ -31,6 +31,8 @@ class Item(db.Model):
     def to_json(self):
         return {
             'idItem': self.idItem,
+            'tipoItem': self.tipoItem,
+            'descItem': self.descItem,
             'terminalItem': self.terminalItem,
             'proprietarioItem': self.proprietarioItem
         }
@@ -59,7 +61,7 @@ class Aluguel(db.Model):
     inicioAluguel = db.Column(db.DateTime, nullable=False)
     fimAluguel = db.Column(db.DateTime, nullable=True)
     tempoAluguel = db.Column(db.Time, nullable=True)
-    aluguelAtivo = db.Column(db.Boolean, nullable=False)
+    aluguelAtivo = db.Column(db.Boolean, default=True)
 
     def to_json(self):
         return {
@@ -68,6 +70,6 @@ class Aluguel(db.Model):
             'idUsuario': self.idUsuario,
             'inicioAluguel': self.inicioAluguel,
             'fimAluguel': self.fimAluguel,
-            'tempoAluguel': self.fimAluguel,
+            'tempoAluguel': self.tempoAluguel,
             'aluguelAtivo': self.aluguelAtivo
         }
