@@ -1,4 +1,5 @@
 from . import db
+from sqlalchemy import event, DDL
 
 
 class Usuario(db.Model):
@@ -7,8 +8,9 @@ class Usuario(db.Model):
     nomeUsuario = db.Column(db.String(50), nullable=False)
     docUsuario = db.Column(db.String(15), nullable=False)
     saldoUsuario = db.Column(db.Numeric(19, 4), default=0)
-    itens = db.relationship('Item', backref=db.backref('proprietario', lazy=True))
-    alugueis = db.relationship('Aluguel', backref=db.backref('locatario', lazy=True))
+    itens = db.relationship('Item', backref=db.backref('usuario', lazy=True))
+    alugueis = db.relationship('Aluguel', backref=db.backref('usuario', lazy=True))
+    historicoAlugueis = db.relationship('HistoricoAluguel', backref=db.backref('usuario', lazy=True))
 
     def to_json(self):
         return {
@@ -22,16 +24,15 @@ class Usuario(db.Model):
 class Item(db.Model):
     __tablename__ = 'item'
     idItem = db.Column(db.Integer, primary_key=True)
-    tipoItem = db.Column(db.String(50), nullable=False)
     descItem = db.Column(db.String(100), nullable=True)
     terminalItem = db.Column(db.Integer, db.ForeignKey('terminal.idTerminal'), nullable=False)
     proprietarioItem = db.Column(db.Integer, db.ForeignKey('usuario.idUsuario'), nullable=False)
-    alugueis = db.relationship('Aluguel', backref=db.backref('item', lazy=True))
+    aluguel = db.relationship('Aluguel', backref=db.backref('item', lazy=True), uselist=False)
+    historicoAlugueis = db.relationship('HistoricoAluguel', backref=db.backref('item', lazy=True))
 
     def to_json(self):
         return {
             'idItem': self.idItem,
-            'tipoItem': self.tipoItem,
             'descItem': self.descItem,
             'terminalItem': self.terminalItem,
             'proprietarioItem': self.proprietarioItem
@@ -59,9 +60,6 @@ class Aluguel(db.Model):
     idItem = db.Column(db.Integer, db.ForeignKey('item.idItem'), nullable=False)
     idUsuario = db.Column(db.Integer, db.ForeignKey('usuario.idUsuario'), nullable=False)
     inicioAluguel = db.Column(db.DateTime, nullable=False)
-    fimAluguel = db.Column(db.DateTime, nullable=True)
-    tempoAluguel = db.Column(db.Time, nullable=True)
-    aluguelAtivo = db.Column(db.Boolean, default=True)
 
     def to_json(self):
         return {
@@ -69,7 +67,40 @@ class Aluguel(db.Model):
             'idItem': self.idItem,
             'idUsuario': self.idUsuario,
             'inicioAluguel': self.inicioAluguel,
-            'fimAluguel': self.fimAluguel,
-            'tempoAluguel': self.tempoAluguel,
-            'aluguelAtivo': self.aluguelAtivo
         }
+
+
+class HistoricoAluguel(db.Model):
+    __tablename__ = 'historico_aluguel'
+    idHistorico = db.Column(db.Integer, primary_key=True)
+    idAluguel = db.Column(db.Integer, nullable=False)
+    idItem = db.Column(db.Integer, db.ForeignKey('item.idItem'), nullable=False)
+    idUsuario = db.Column(db.Integer, db.ForeignKey('usuario.idUsuario'), nullable=False)
+    inicioAluguel = db.Column(db.DateTime, nullable=False)
+    fimAluguel = db.Column(db.DateTime, nullable=False)
+    tempoAluguel = db.Column(db.Time, nullable=False)
+
+    def to_json(self):
+        return {
+            'idHistorico': self.idHistorico,
+            'idAluguel': self.idAluguel,
+            'idItem': self.idItem,
+            'idUsuario': self.idUsuario,
+            'inicioAluguel': self.inicioAluguel,
+            'fimAluguel': self.fimAluguel,
+            'tempoAluguel': self.tempoAluguel
+        }
+
+
+"""
+# Trigger que, ao deletar uma coluna na tabela Aluguel, reconstroi seus dados em uma tabela com o histórico
+trigger_historico = DDL('''\
+                CREATE TRIGGER aluguel_para_historico BEFORE DELETE ON aluguel FOR EACH ROW
+                BEGIN
+                INSERT INTO historico_aluguel (idAluguel, idItem, idUsuario, inicioAluguel, fimAluguel, tempoAluguel) 
+                VALUES (old.idAluguel, old.idItem, old.idUsuario, old.inicioAluguel, now(), now() - inicioAluguel);
+                END
+               ''')
+
+event.listen(Aluguel, 'before_delete', trigger_historico)
+"""

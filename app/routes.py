@@ -1,7 +1,7 @@
 from datetime import datetime, timedelta
 import os
 from . import create_app
-from .models import Usuario, Item, Aluguel, Terminal
+from .models import Usuario, Item, Aluguel, Terminal, HistoricoAluguel
 from . import db
 from flask import jsonify, request, abort
 
@@ -24,11 +24,35 @@ def get_usuario(idUsuario):
 
 
 @app.route("/usuario/documento/<string:docUsuario>", methods=["GET"])
-def get_usuario_documento(docUsuario):
+def get_usuario_doc(docUsuario):
     usuario = Usuario.query.filter_by(docUsuario=docUsuario).first()
     if usuario is None:
         abort(404)
     return jsonify(usuario.to_json()), 200
+
+
+@app.route("/usuario/<int:idUsuario>/itens", methods=["GET"])
+def get_usuario_itens(idUsuario):
+    usuario = Usuario.query.get(idUsuario)
+    if usuario is None:
+        abort(404)
+    return jsonify([item.to_json() for item in usuario.itens]), 200
+
+
+@app.route("/usuario/<int:idUsuario>/alugueis", methods=["GET"])
+def get_usuario_alugueis(idUsuario):
+    usuario = Usuario.query.get(idUsuario)
+    if usuario is None:
+        abort(404)
+    return jsonify([aluguel.to_json() for aluguel in usuario.alugueis]), 200
+
+
+@app.route("/usuario/<int:idUsuario>/hist_alugueis", methods=["GET"])
+def get_usuario_hist_alugueis(idUsuario):
+    usuario = Usuario.query.get(idUsuario)
+    if usuario is None:
+        abort(404)
+    return jsonify([hist_aluguel.to_json() for hist_aluguel in usuario.historicoAlugueis]), 200
 
 
 @app.route("/item/lista", methods=["GET"])
@@ -39,6 +63,22 @@ def get_itens():
     return jsonify([item.to_json() for item in itens]), 200
 
 
+@app.route("/item/<int:idItem>", methods=["GET"])
+def get_item(idItem):
+    item = Item.query.get(idItem)
+    if item is None:
+        abort(404)
+    return jsonify(item.to_json()), 200
+
+
+@app.route("/item/<int:idItem>/hist_alugueis", methods=["GET"])
+def get_item_hist_alugueis(idItem):
+    item = Usuario.query.get(idItem)
+    if item is None:
+        abort(404)
+    return jsonify([hist_aluguel.to_json() for hist_aluguel in item.historicoAlugueis]), 200
+
+
 @app.route("/terminal/lista", methods=["GET"])
 def get_terminais():
     terminais = Terminal.query.all()
@@ -47,12 +87,52 @@ def get_terminais():
     return jsonify([terminal.to_json() for terminal in terminais]), 200
 
 
+@app.route("/terminal/<int:idTerminal>/itens", methods=["GET"])
+def get_terminal_itens(idTerminal):
+    terminal = Usuario.query.get(idTerminal)
+    if terminal is None:
+        abort(404)
+    return jsonify([item.to_json() for item in terminal.itens]), 200
+
+
+@app.route("/terminal/<int:idTerminal>", methods=["GET"])
+def get_terminal(idTerminal):
+    terminal = Terminal.query.get(idTerminal)
+    if terminal is None:
+        abort(404)
+    return jsonify(terminal.to_json()), 200
+
+
 @app.route("/aluguel/lista", methods=["GET"])
 def get_alugueis():
     alugueis = Aluguel.query.all()
     if alugueis is None:
         abort(404)
     return jsonify([aluguel.to_json() for aluguel in alugueis]), 200
+
+
+@app.route("/aluguel/<int:idAluguel>", methods=["GET"])
+def get_aluguel(idAluguel):
+    aluguel = Aluguel.query.get(idAluguel)
+    if aluguel is None:
+        abort(404)
+    return jsonify(aluguel.to_json()), 200
+
+
+@app.route("/hist_aluguel/lista", methods=["GET"])
+def get_hist_alugueis():
+    hist_alugueis = HistoricoAluguel.query.all()
+    if hist_alugueis is None:
+        abort(404)
+    return jsonify([aluguel.to_json() for aluguel in hist_alugueis]), 200
+
+
+@app.route("/hist_aluguel/<int:idHistorico>", methods=["GET"])
+def get_hist_aluguel(idHistorico):
+    hist_aluguel = HistoricoAluguel.query.get(idHistorico)
+    if hist_aluguel is None:
+        abort(404)
+    return jsonify(hist_aluguel.to_json()), 200
 
 
 # -----------------------                POST - CREATE             -----------------------------------
@@ -75,7 +155,6 @@ def post_item():
     if not request.json:
         abort(400)
     item = Item(
-        tipoItem=request.json.get('tipoItem'),
         descItem=request.json.get('descItem'),
         terminalItem=request.json.get('terminalItem'),
         proprietarioItem=request.json.get('proprietarioItem')
@@ -120,9 +199,9 @@ def put_usuario(idUsuario):
     usuario = Usuario.query.get(idUsuario)
     if usuario is None:
         abort(404)
-    usuario.nomeUsuario = request.json.get('nomeUsuario')
-    usuario.docUsuario = request.json.get('docUsuario')
-    usuario.saldoUsuario = request.json.get('saldoUsuario')
+    usuario.nomeUsuario = request.json.get('nomeUsuario') or usuario.nomeUsuario
+    usuario.docUsuario = request.json.get('docUsuario') or usuario.docUsuario
+    usuario.saldoUsuario = request.json.get('saldoUsuario') or usuario.saldoUsuario
     db.session.commit()
     return jsonify(usuario.to_json()), 200
 
@@ -134,10 +213,9 @@ def put_item(idItem):
     item = Item.query.get(idItem)
     if item is None:
         abort(404)
-    item.tipoItem = request.json.get('tipoItem')
-    item.descItem = request.json.get('descItem')
-    item.terminalItem = request.json.get('terminalItem')
-    item.proprietarioItem = request.json.get('proprietarioItem')
+    item.descItem = request.json.get('descItem') or item.descItem
+    item.terminalItem = request.json.get('terminalItem') or item.terminalItem
+    item.proprietarioItem = request.json.get('proprietarioItem') or item.proprietarioItem
     db.session.commit()
     return jsonify(item.to_json()), 200
 
@@ -149,30 +227,69 @@ def put_terminal(idTerminal):
     terminal = Item.query.get(idTerminal)
     if terminal is None:
         abort(404)
-    terminal.nomeTerminal = request.json.get('nomeTerminal')
-    terminal.localTerminal = request.json.get('localTerminal')
+    terminal.nomeTerminal = request.json.get('nomeTerminal') or terminal.nomeTerminal
+    terminal.localTerminal = request.json.get('localTerminal') or terminal.localTerminal
     db.session.commit()
     return jsonify(terminal.to_json()), 200
 
 
-@app.route('/aluguel/<int:idAluguel>', methods=['PUT'])
-def put_finaliza_aluguel(idAluguel):
-    aluguel = Aluguel.query.get(idAluguel)
-    if aluguel is None:
-        abort(404)
-    aluguel.fimAluguel = str(datetime.now())
-    aluguel.tempoAluguel = str(datetime.now() - aluguel.inicioAluguel)
-    aluguel.aluguelAtivo = False
-    db.session.commit()
-    return jsonify(aluguel.to_json()), 200
-
-
 # -----------------------                DELETE             -----------------------------------------
+# BUG: quando existem alugueis relacionados com qualquer usuario não realiza o delete - Erro 405
 @app.route('/usuario/<int:idUsuario>', methods=['DELETE'])
 def delete_usuario(idUsuario):
     usuario = Usuario.query.get(idUsuario)
     if usuario is None:
         abort(404)
+    if usuario.alugueis is not None:
+        abort(405)
+    for item in usuario.itens:
+        db.session.delete(item)
+        db.session.commit()
     db.session.delete(usuario)
+    db.session.commit()
+    return jsonify({'result': True}), 200
+
+
+@app.route('/item/<int:idItem>', methods=['DELETE'])
+def delete_item(idItem):
+    item = Item.query.get(idItem)
+    if item is None:
+        abort(404)
+    if item.aluguel is not None:
+        abort(405)
+    db.session.delete(item)
+    db.session.commit()
+    return jsonify({'result': True}), 200
+
+
+# BUG: quando existem itens relacionados a qualquer terminal, não realiza o delete - Erro 405
+@app.route('/terminal/<int:idTerminal>', methods=['DELETE'])
+def delete_terminal(idTerminal):
+    terminal = Terminal.query.get(idTerminal)
+    if terminal is None:
+        abort(404)
+    if terminal.itens is not None:
+        abort(405)
+    db.session.delete(terminal)
+    db.session.commit()
+    return jsonify({'result': True}), 200
+
+
+@app.route('/aluguel/<int:idAluguel>', methods=['DELETE'])
+def delete_aluguel(idAluguel):
+    aluguel = Aluguel.query.get(idAluguel)
+    if aluguel is None:
+        abort(404)
+    db.session.delete(aluguel)
+    db.session.commit()
+    return jsonify({'result': True}), 200
+
+
+@app.route('/hist_aluguel/<int:idHistorico>', methods=['DELETE'])
+def delete_hist_aluguel(idHistorico):
+    hist_aluguel = Aluguel.query.get(idHistorico)
+    if hist_aluguel is None:
+        abort(404)
+    db.session.delete(hist_aluguel)
     db.session.commit()
     return jsonify({'result': True}), 200
