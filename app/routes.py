@@ -89,7 +89,7 @@ def get_terminais():
 
 @app.route("/terminal/<int:idTerminal>/itens", methods=["GET"])
 def get_terminal_itens(idTerminal):
-    terminal = Usuario.query.get(idTerminal)
+    terminal = Terminal.query.get(idTerminal)
     if terminal is None:
         abort(404)
     return jsonify([item.to_json() for item in terminal.itens]), 200
@@ -184,7 +184,7 @@ def post_aluguel():
         abort(400)
     iditem = request.json.get('idItem')
     if Aluguel.query.get(iditem) is not None:
-        abort(403)
+        abort(406)
     aluguel = Aluguel(
         idItem=iditem,
         idUsuario=request.json.get('idUsuario'),
@@ -228,7 +228,7 @@ def put_item(idItem):
 def put_terminal(idTerminal):
     if not request.json:
         abort(400)
-    terminal = Item.query.get(idTerminal)
+    terminal = Terminal.query.get(idTerminal)
     if terminal is None:
         abort(404)
     terminal.nomeTerminal = request.json.get('nomeTerminal') or terminal.nomeTerminal
@@ -238,14 +238,13 @@ def put_terminal(idTerminal):
 
 
 # -----------------------                DELETE             -----------------------------------------
-# BUG: quando existem alugueis relacionados com qualquer usuario não realiza o delete - Erro 405
 # Deleta usuario e todos os itens do qual ele é proprietario. Não deleta se tiver aluguel ativo
 @app.route('/usuario/<int:idUsuario>', methods=['DELETE'])
 def delete_usuario(idUsuario):
     usuario = Usuario.query.get(idUsuario)
     if usuario is None:
         abort(404)
-    if usuario.alugueis is not None:
+    if Aluguel.query.filter_by(idUsuario=idUsuario).first() is not None:
         abort(405)
     for item in usuario.itens:
         db.session.delete(item)
@@ -271,20 +270,20 @@ def delete_item(idItem):
     return jsonify({'result': True}), 200
 
 
-# BUG: quando existem itens relacionados a qualquer terminal, não realiza o delete - Erro 405
 # Não deleta o terminal se tiver itens associados a ele
 @app.route('/terminal/<int:idTerminal>', methods=['DELETE'])
 def delete_terminal(idTerminal):
     terminal = Terminal.query.get(idTerminal)
     if terminal is None:
         abort(404)
-    if terminal.itens is not None:
+    if Item.query.filter_by(terminalItem=idTerminal).first() is not None:
         abort(405)
     db.session.delete(terminal)
     db.session.commit()
     return jsonify({'result': True}), 200
 
 
+# Deleta aluguel sem adicioná-lo ao histórico.
 @app.route('/aluguel/<int:idAluguel>', methods=['DELETE'])
 def delete_aluguel(idAluguel):
     aluguel = Aluguel.query.get(idAluguel)
