@@ -1,5 +1,4 @@
 from . import db
-from sqlalchemy import event, DDL
 
 
 class Usuario(db.Model):
@@ -8,9 +7,9 @@ class Usuario(db.Model):
     nomeUsuario = db.Column(db.String(50), nullable=False)
     docUsuario = db.Column(db.String(15), nullable=False)
     saldoUsuario = db.Column(db.Numeric(19, 4), default=0)
-    itens = db.relationship('Item', backref=db.backref('usuario', lazy=True))
-    alugueis = db.relationship('Aluguel', backref=db.backref('usuario', lazy=True))
-    historicoAlugueis = db.relationship('HistoricoAluguel', backref=db.backref('usuario', lazy=True))
+    itens = db.relationship('Item', backref=db.backref('proprietario', lazy=True))
+    alugueis = db.relationship('Aluguel', backref=db.backref('locatario', lazy=True))
+    historicoAlugueis = db.relationship('HistoricoAluguel', backref=db.backref('locatario', lazy=True))
 
     def to_json(self):
         return {
@@ -76,6 +75,7 @@ class HistoricoAluguel(db.Model):
     idAluguel = db.Column(db.Integer, nullable=False)
     idItem = db.Column(db.Integer, db.ForeignKey('item.idItem'), nullable=False)
     idUsuario = db.Column(db.Integer, db.ForeignKey('usuario.idUsuario'), nullable=False)
+    docUsuario = db.Column(db.String(15), nullable=False)
     inicioAluguel = db.Column(db.DateTime, nullable=False)
     fimAluguel = db.Column(db.DateTime, nullable=False)
     tempoAluguel = db.Column(db.Time, nullable=False)
@@ -86,21 +86,8 @@ class HistoricoAluguel(db.Model):
             'idAluguel': self.idAluguel,
             'idItem': self.idItem,
             'idUsuario': self.idUsuario,
+            'docUsuario': self.docUsuario,
             'inicioAluguel': self.inicioAluguel,
             'fimAluguel': self.fimAluguel,
-            'tempoAluguel': self.tempoAluguel
+            'tempoAluguel': self.tempoAluguel.__str__()
         }
-
-
-"""
-# Trigger que, ao deletar uma coluna na tabela Aluguel, reconstroi seus dados em uma tabela com o histórico
-trigger_historico = DDL('''\
-                CREATE TRIGGER aluguel_para_historico BEFORE DELETE ON aluguel FOR EACH ROW
-                BEGIN
-                INSERT INTO historico_aluguel (idAluguel, idItem, idUsuario, inicioAluguel, fimAluguel, tempoAluguel) 
-                VALUES (old.idAluguel, old.idItem, old.idUsuario, old.inicioAluguel, now(), now() - inicioAluguel);
-                END
-               ''')
-
-event.listen(Aluguel, 'before_delete', trigger_historico)
-"""

@@ -124,7 +124,7 @@ def get_hist_alugueis():
     hist_alugueis = HistoricoAluguel.query.all()
     if hist_alugueis is None:
         abort(404)
-    return jsonify([aluguel.to_json() for aluguel in hist_alugueis]), 200
+    return jsonify([hist_aluguel.to_json() for hist_aluguel in hist_alugueis]), 200
 
 
 @app.route("/hist_aluguel/<int:idHistorico>", methods=["GET"])
@@ -177,12 +177,16 @@ def post_terminal():
     return jsonify(terminal.to_json()), 201
 
 
+# Não permite criar um aluguel com um item que já esteja em um aluguel
 @app.route('/aluguel', methods=['POST'])
 def post_aluguel():
     if not request.json:
         abort(400)
+    iditem = request.json.get('idItem')
+    if Aluguel.query.get(iditem) is not None:
+        abort(403)
     aluguel = Aluguel(
-        idItem=request.json.get('idItem'),
+        idItem=iditem,
         idUsuario=request.json.get('idUsuario'),
         inicioAluguel=datetime.now()
     )
@@ -235,6 +239,7 @@ def put_terminal(idTerminal):
 
 # -----------------------                DELETE             -----------------------------------------
 # BUG: quando existem alugueis relacionados com qualquer usuario não realiza o delete - Erro 405
+# Deleta usuario e todos os itens do qual ele é proprietario. Não deleta se tiver aluguel ativo
 @app.route('/usuario/<int:idUsuario>', methods=['DELETE'])
 def delete_usuario(idUsuario):
     usuario = Usuario.query.get(idUsuario)
@@ -250,6 +255,7 @@ def delete_usuario(idUsuario):
     return jsonify({'result': True}), 200
 
 
+# Deleta item e o historico de alugueis referentes ao item. Não deleta se tiver aluguel ativo
 @app.route('/item/<int:idItem>', methods=['DELETE'])
 def delete_item(idItem):
     item = Item.query.get(idItem)
@@ -257,12 +263,16 @@ def delete_item(idItem):
         abort(404)
     if item.aluguel is not None:
         abort(405)
+    for hist_aluguel in item.historicoAlugueis:
+        db.session.delete(hist_aluguel)
+        db.session.commit()
     db.session.delete(item)
     db.session.commit()
     return jsonify({'result': True}), 200
 
 
 # BUG: quando existem itens relacionados a qualquer terminal, não realiza o delete - Erro 405
+# Não deleta o terminal se tiver itens associados a ele
 @app.route('/terminal/<int:idTerminal>', methods=['DELETE'])
 def delete_terminal(idTerminal):
     terminal = Terminal.query.get(idTerminal)
@@ -287,9 +297,31 @@ def delete_aluguel(idAluguel):
 
 @app.route('/hist_aluguel/<int:idHistorico>', methods=['DELETE'])
 def delete_hist_aluguel(idHistorico):
-    hist_aluguel = Aluguel.query.get(idHistorico)
+    hist_aluguel = HistoricoAluguel.query.get(idHistorico)
     if hist_aluguel is None:
         abort(404)
     db.session.delete(hist_aluguel)
     db.session.commit()
     return jsonify({'result': True}), 200
+
+
+# Finaliza (deleta) um aluguel mas antes cria uma entrada em HistoricoAluguel com os dados do aluguel
+@app.route('/aluguel/finaliza/<int:idAluguel>', methods=['DELETE'])
+def finaliza_aluguel(idAluguel):
+    aluguel = Aluguel.query.get(idAluguel)
+    if Aluguel is None:
+        abort(404)
+    hist_aluguel = HistoricoAluguel(
+        idAluguel=aluguel.idAluguel,
+        idItem=aluguel.idItem,
+        idUsuario=aluguel.idUsuario,
+        docUsuario=aluguel.locatario.docUsuario,
+        inicioAluguel=aluguel.inicioAluguel,
+        fimAluguel=datetime.now(),
+        tempoAluguel=datetime.now() - aluguel.inicioAluguel
+    )
+    db.session.add(hist_aluguel)
+    db.session.delete(aluguel)
+    db.session.commit()
+    return jsonify({'result': True}, hist_aluguel.to_json()), 200
+
